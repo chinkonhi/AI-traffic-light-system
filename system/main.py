@@ -14,9 +14,9 @@ class Car:
 		self.x = road[0]
 		self.y = road[1]
 		self.type = road[3]
+		self.speed = gp.CAR_INITIAL # 初始速度为0
 		self.screen_temp = screen_temp
-		self.image = pygame.image.load("../img/"+road[2]+".png")
-				
+		self.image = pygame.image.load("../img/"+road[2]+".png")			
 
 	def display(self):
 		self.screen_temp.blit(self.image,(self.x,self.y))
@@ -41,64 +41,74 @@ class Car_control:
 		#列表生成器,放入所有车的现坐标
 		self.clist = clist
 		for cMsg in self.clist:
-			self.car_gps = np.append(self.car_gps, [cMsg.x, cMsg.y, cMsg.type, 0, 0])
-		self.car_gps = self.car_gps.reshape(-1,5)
+			self.car_gps = np.append(self.car_gps, [cMsg.type, cMsg.x, cMsg.y, 0, 0, cMsg.speed])
+		self.car_gps = self.car_gps.reshape(-1,6)
 		
 		#创建所有车辆的坐标面
-		self.car_gps[self.car_gps[:,2]>0, 3] = \
-			self.car_gps[self.car_gps[:,2]>0, 0] + gp.CAR_HEIGHT
-		self.car_gps[self.car_gps[:,2]>0, 4] = \
-			self.car_gps[self.car_gps[:,2]>0, 1] + gp.CAR_WIDTH
-		self.car_gps[self.car_gps[:,2]<0, 3] = \
-			self.car_gps[self.car_gps[:,2]<0, 0] + gp.CAR_WIDTH
-		self.car_gps[self.car_gps[:,2]<0, 4] = \
-			self.car_gps[self.car_gps[:,2]<0, 1] + gp.CAR_HEIGHT
+		self.car_gps[self.car_gps[:,0]>0, 3] = \
+			self.car_gps[self.car_gps[:,0]>0, 1] + gp.CAR_HEIGHT
+		self.car_gps[self.car_gps[:,0]>0, 4] = \
+			self.car_gps[self.car_gps[:,0]>0, 2] + gp.CAR_WIDTH
+		self.car_gps[self.car_gps[:,0]<0, 3] = \
+			self.car_gps[self.car_gps[:,0]<0, 1] + gp.CAR_WIDTH
+		self.car_gps[self.car_gps[:,0]<0, 4] = \
+			self.car_gps[self.car_gps[:,0]<0, 2] + gp.CAR_HEIGHT
 		
 		#创建所有车辆的碰撞检测点(2个)
 		self.crash = self.car_gps.copy()
-		self.crash[self.crash[:,2]==1] += [-gp.CAR_SPEED, 0, 0, -(gp.CAR_HEIGHT+gp.CAR_SPEED), 0]
-		self.crash[self.crash[:,2]==2] += [(gp.CAR_HEIGHT+gp.CAR_SPEED), 0, 0, gp.CAR_SPEED, 0]
-		self.crash[self.crash[:,2]==-2] += [0, (gp.CAR_HEIGHT+gp.CAR_SPEED), 0, 0, gp.CAR_SPEED]
-		self.crash[self.crash[:,2]==-1] += [0, -gp.CAR_SPEED, 0, 0, -(gp.CAR_HEIGHT+gp.CAR_SPEED)]
-		self.crash = np.delete(self.crash, 2, axis=1)
+		self.crash[self.crash[:,0]==1] += [0, -gp.CAR_SPEED, 0, -(gp.CAR_HEIGHT+gp.CAR_SPEED), 0, 0]
+		self.crash[self.crash[:,0]==2] += [0, (gp.CAR_HEIGHT+gp.CAR_SPEED), 0, gp.CAR_SPEED, 0, 0]
+		self.crash[self.crash[:,0]==-2] += [0, 0, (gp.CAR_HEIGHT+gp.CAR_SPEED), 0, gp.CAR_SPEED, 0]
+		self.crash[self.crash[:,0]==-1] += [0, 0, -gp.CAR_SPEED, 0, -(gp.CAR_HEIGHT+gp.CAR_SPEED), 0]
+		self.crash = np.delete(self.crash, 5, axis=1)
+		self.crash = np.delete(self.crash, 0, axis=1)
 		
 		return self.car_gps
 
 	def crashCheck(self,tL_car_gps):
 		''' 判断是否可以前进 '''
-		self.car_gps = tL_car_gps.reshape(-1,5)
-		tL_car_gps = tL_car_gps.reshape(-1,5)
+		self.car_gps = tL_car_gps.reshape(-1,6)
+		tL_car_gps = tL_car_gps.reshape(-1,6)
 		ind = 0
-		for cs in self.crash:
-
+		for cs in self.crash: 
+		# 遍历所有车辆的的碰撞点(不包含信号灯坐标),如果没有和已被占用坐标冲撞,则前行
 			if not(
 				any(
-					(cs[0]>=tL_car_gps[:,0])&
+					(cs[0]>=tL_car_gps[:,1])&
 					(cs[0]<=tL_car_gps[:,3])&
-					(cs[1]>=tL_car_gps[:,1])&
+					(cs[1]>=tL_car_gps[:,2])&
 					(cs[1]<=tL_car_gps[:,4])
 				)|\
 				any(
-					(cs[2]>=tL_car_gps[:,0])&
+					(cs[2]>=tL_car_gps[:,1])&
 					(cs[2]<=tL_car_gps[:,3])&
-					(cs[3]>=tL_car_gps[:,1])&
+					(cs[3]>=tL_car_gps[:,2])&
 					(cs[3]<=tL_car_gps[:,4])
 				)
 			):
-				if self.car_gps[ind,2] > 0:
-					if abs(self.car_gps[ind,2]) == 1:
-						self.clist[ind].x -= gp.CAR_SPEED
-						self.car_gps[ind] += [-gp.CAR_SPEED, 0, 0, -gp.CAR_SPEED, 0]
+				if self.car_gps[ind,0] > 0:
+				# 根据方向(type)使车前行
+					if abs(self.car_gps[ind,0]) == 1:
+						self.clist[ind].x -= self.car_gps[ind, 5] # 根据速度进行移动
+						self.car_gps[ind] += [0, -self.car_gps[ind, 5], 0, -self.car_gps[ind, 5], 0, 0]
 					else:
-						self.clist[ind].x += gp.CAR_SPEED
-						self.car_gps[ind] += [gp.CAR_SPEED, 0, 0, gp.CAR_SPEED, 0]
+						self.clist[ind].x += self.car_gps[ind, 5]
+						self.car_gps[ind] += [0, self.car_gps[ind, 5], 0, self.car_gps[ind, 5], 0, 0]
 				else:
-					if abs(self.car_gps[ind,2]) == 1:
-						self.clist[ind].y -= gp.CAR_SPEED
-						self.car_gps[ind] += [0, -gp.CAR_SPEED, 0, 0, -gp.CAR_SPEED]
+					if abs(self.car_gps[ind,0]) == 1:
+						self.clist[ind].y -= self.car_gps[ind, 5]
+						self.car_gps[ind] += [0, 0, -self.car_gps[ind, 5], 0, -self.car_gps[ind, 5], 0]
 					else:
-						self.clist[ind].y += gp.CAR_SPEED
-						self.car_gps[ind] += [0, gp.CAR_SPEED, 0, 0, gp.CAR_SPEED]						
+						self.clist[ind].y += self.car_gps[ind, 5]
+						self.car_gps[ind] += [0, 0, self.car_gps[ind, 5], 0, self.car_gps[ind, 5], 0]
+				# 加速
+				if self.clist[ind].speed < gp.CAR_SPEED:
+					self.clist[ind].speed += gp.CAR_ACCELERATE
+				else :
+					self.clist[ind].speed = gp.CAR_SPEED
+			else: # 如果监测到碰撞,则将车辆速度设置为初始速度0
+				self.clist[ind].speed = gp.CAR_INITIAL
+
 			ind += 1
 
 		return self.clist
@@ -241,11 +251,12 @@ class Traffic_light:
 		#将红绿灯坐标添加进car_gps
 		for c in carPos1:
 			self.car_gps = np.append(self.car_gps, [
+				0, # 方向type
 				self.carBlock[c][0],
 				self.carBlock[c][1],
-				0,
 				self.carBlock[c][0] + self.carBlock[c][2],
 				self.carBlock[c][1] + self.carBlock[c][3],
+				0 # 速度0
 			])
 		
 		#将红绿灯信息添加进通行人pers_gps中
@@ -270,11 +281,12 @@ class Traffic_light:
 				#是否亮另一边黄灯					
 				for c in carPos2:
 					self.car_gps = np.append(self.car_gps, [
+						0, # 方向type
 						self.carBlock[c][0],
 						self.carBlock[c][1],
-						0,
 						self.carBlock[c][0] + self.carBlock[c][2],
 						self.carBlock[c][1] + self.carBlock[c][3],
+						0 # 速度0
 					])
 					pygame.draw.rect(self.screen_temp, self.yellow, self.carBlock[c], 0)
 
@@ -399,6 +411,7 @@ def main():
 			if event.type == QUIT: #如果点击关闭窗口,则退出
 				sys.exit()
 			elif event.type == pygame.MOUSEBUTTONDOWN:
+				# 侧边栏按钮控制
 				pos = pygame.mouse.get_pos()
 				mouse_x = pos[0]
 				mouse_y = pos[1]
@@ -467,10 +480,10 @@ def main():
 if __name__ == "__main__":
 	main()
 
-# BASE(5/10)
+# BASE(6/10)
 #1.全信号表示,包括红黄蓝(人行横道包含)(1/1)
 #2.添加人行横道的斑马线(0/1)
-#3.车的加速度机能(0/1)
+#3.车的加速度机能(1/1)
 #4.智能式信号(0/1)
 #5.车与人的相关变数用定数定义(便于修改)(1/1)
 #6.黄灯期间行人能横穿马路(1/1)
