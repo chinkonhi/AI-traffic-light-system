@@ -7,6 +7,9 @@ PERS_WIDTH = 20
 CAR_HEIGHT = 80
 CAR_WIDTH = 40
 
-CAR_ACCELERATE = 3 # 加速度
+CAR_ACCELERATE = 1 # 加速度
 CAR_INITIAL = 0 # 初速度
 CAR_SPEED = 15 # 最高速
+
+RED_TIME = 15 # 红灯时长
+YELLOW_TIME = 4 # 黄灯时长
