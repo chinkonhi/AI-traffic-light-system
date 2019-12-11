@@ -7,6 +7,7 @@ import sys
 import numpy as np
 #导入全局变量global
 import global_parameter as gp
+from aiControl import AIControl
 
 class Car:
 	'''控制车辆类'''
@@ -68,22 +69,21 @@ class Car_control:
 	def crashCheck(self,tL_car_gps):
 		''' 判断是否可以前进 '''
 		self.car_gps = tL_car_gps.reshape(-1,6)
-		tL_car_gps = tL_car_gps.reshape(-1,6)
 		ind = 0
 		for cs in self.crash: 
 		# 遍历所有车辆的的碰撞点(不包含信号灯坐标),如果没有和已被占用坐标冲撞,则前行
 			if not(
 				any(
-					(cs[0]>=tL_car_gps[:,1])&
-					(cs[0]<=tL_car_gps[:,3])&
-					(cs[1]>=tL_car_gps[:,2])&
-					(cs[1]<=tL_car_gps[:,4])
+					(cs[0]>=self.car_gps[:,1])&
+					(cs[0]<=self.car_gps[:,3])&
+					(cs[1]>=self.car_gps[:,2])&
+					(cs[1]<=self.car_gps[:,4])
 				)|\
 				any(
-					(cs[2]>=tL_car_gps[:,1])&
-					(cs[2]<=tL_car_gps[:,3])&
-					(cs[3]>=tL_car_gps[:,2])&
-					(cs[3]<=tL_car_gps[:,4])
+					(cs[2]>=self.car_gps[:,1])&
+					(cs[2]<=self.car_gps[:,3])&
+					(cs[3]>=self.car_gps[:,2])&
+					(cs[3]<=self.car_gps[:,4])
 				)
 			):
 				if self.car_gps[ind,0] > 0:
@@ -230,13 +230,15 @@ class Traffic_light:
 			[615, 515, 70, 10, -1]
 		]
 		self.timer = 0
-		self.side = True #哪个方向信号管制
-		self.rtime = 15 #红灯时间
-		self.ytime = 4 #黄灯时间
+		self.horizontal = True #哪个方向信号管制
+		self.rtime = gp.RED_TIME #红灯时间
+		self.ytime = gp.YELLOW_TIME #黄灯时间
+		self.aiC = AIControl(self.horizontal) # instance
+		self.cflag = self.horizontal
 
 	def lights(self):
 		''' 信号灯控制 '''
-		if self.side:
+		if self.horizontal:
 			#横向同行禁止
 			carPos1 = list(range(2))
 			carPos2 = list(range(2,4))
@@ -309,18 +311,34 @@ class Traffic_light:
 			self.timer = time.time()
 		elif (self.timer+self.rtime+self.ytime) <= time.time():
 			# 固定时长改变红绿灯
-			self.side = bool(1-self.side) #布尔值取反
+			self.horizontal = bool(1-self.horizontal) #布尔值取反
 			self.timer = time.time() #新的计时
+		
 		self.car_gps = car_gps
 		self.pers_gps = pers_gps
 		self.lights()
 		return self.car_gps,self.pers_gps
 
-	def caseChange(self,car_gps):
+	def aiChange(self,car_gps,pers_gps):
 		''' 根据情况改变信号灯 '''
-		#根据总量来具体情况具体对应
-		pass
+		# 将车辆列表,行人列表,时间戳传入AIControl类
+		if self.timer == 0:
+			self.timer = time.time()
 
+		#if time.time() - self.timer == gp.YELLOW_TIME # 黄灯时长次进行智能判断
+		self.aiC.list_process(car_gps,pers_gps)
+		self.horizontal = self.aiC.aiControl(self.timer)
+		
+		if self.cflag != self.horizontal:
+			# 如果判断结果和现状不同,则更改现状cflag,并且重新计时
+			self.cflag = self.horizontal
+			self.timer = time.time()
+		
+		self.car_gps = car_gps
+		self.pers_gps = pers_gps
+		self.lights()
+
+		return self.car_gps,self.pers_gps
 
 def sideMenu(screen):
 	''' 生成侧边目录 '''
@@ -331,19 +349,6 @@ def sideMenu(screen):
 	screen.blit(pygame.image.load("../img/知能式.jpg"),(10,260))
 	screen.blit(pygame.image.load("../img/+.jpg"),(7,340))
 	screen.blit(pygame.image.load("../img/-.jpg"),(53,340))
-
-	''' 生成斑马线 '''
-	'''
-	pygame.draw.rect(screen, [0,0,0], [620, 220, 10, 70], 0)
-	pygame.draw.rect(screen, [0,0,0], [620, 515, 10, 70], 0)
-	pygame.draw.rect(screen, [0,0,0], [370, 220, 10, 70], 0)
-	pygame.draw.rect(screen, [0,0,0], [370, 515, 10, 70], 0)
-	pygame.draw.rect(screen, [0,0,0], [315, 275, 70, 10], 0)
-	pygame.draw.rect(screen, [0,0,0], [615, 275, 70, 10], 0)
-	pygame.draw.rect(screen, [0,0,0], [315, 515, 70, 10], 0)
-	pygame.draw.rect(screen, [0,0,0], [615, 515, 70, 10], 0)
-	'''
-
 
 #创建主窗口
 def main():
@@ -358,7 +363,7 @@ def main():
 	pygame.display.set_caption("交通制御システム")
 
 	#加载图像,返回图片对象
-	background = pygame.image.load("../img/cross.jpg")
+	background = pygame.image.load("../img/cross1.jpg")
 
 	#设置车辆频度变数
 	carFrequency = 25
@@ -446,7 +451,7 @@ def main():
 			if pattern == 1:#时差式
 				tL_car_gps,tL_pers_gps = trafficLight.timeChange(car_gps,pers_gps)
 			elif pattern == 2:#知能式
-				tL_car_gps,tL_pers_gps = trafficLight.caseChange(car_gps,pers_gps)
+				tL_car_gps,tL_pers_gps = trafficLight.aiChange(car_gps,pers_gps)
 			else:
 				tL_car_gps = car_gps
 				tL_pers_gps = pers_gps
@@ -480,9 +485,9 @@ def main():
 if __name__ == "__main__":
 	main()
 
-# BASE(6/10)
+# BASE(8/12)
 #1.全信号表示,包括红黄蓝(人行横道包含)(1/1)
-#2.添加人行横道的斑马线(0/1)
+#2.添加人行横道的斑马线(1/1)
 #3.车的加速度机能(1/1)
 #4.智能式信号(0/1)
 #5.车与人的相关变数用定数定义(便于修改)(1/1)
@@ -491,6 +496,9 @@ if __name__ == "__main__":
 #8.行人的信号越界踩线问题(1/1)
 #9.car类的重写(参考pers类)(1/1)
 #10.将类分离为单独文件(0/1)
+#11.改造light方法,使其适用于时差式和智能式(1/1)
+#12.时差式转到智能式时的问题(0/1)
+#13.类似Future的同步处理
 #
 # OPTION(0/2)
 # 双信号灯(0/1)
