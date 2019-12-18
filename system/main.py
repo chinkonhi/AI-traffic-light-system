@@ -236,6 +236,89 @@ class Traffic_light:
 		self.aiC = AIControl(self.horizontal) # instance
 		self.cflag = self.horizontal
 
+	def redLight(self,rl,pl):
+		# 表示红灯,添加车辆/行人红灯坐标
+		for r in rl:
+			pygame.draw.rect(self.screen_temp, self.red, self.carBlock[r], 0)
+		for c in rl:
+			self.car_gps = np.append(self.car_gps, [
+				0, # 方向type
+				self.carBlock[c][0],
+				self.carBlock[c][1],
+				self.carBlock[c][0] + self.carBlock[c][2],
+				self.carBlock[c][1] + self.carBlock[c][3],
+				0 # 速度0
+			])
+		for p in pl:
+			self.pers_gps = np.append(self.pers_gps, [
+				self.persBlock[p][4],
+				self.persBlock[p][0],
+				self.persBlock[p][1],
+				self.persBlock[p][0] + self.persBlock[p][2],
+				self.persBlock[p][1] + self.persBlock[p][3],
+			])
+
+	def yellowLight(self,yl,pl):
+		# 表示黄灯,添加车辆/行人黄灯坐标
+		for y in yl:
+			pygame.draw.rect(self.screen_temp, self.yellow, self.carBlock[y], 0)
+		for c in yl:
+			self.car_gps = np.append(self.car_gps, [
+				0, # 方向type
+				self.carBlock[c][0],
+				self.carBlock[c][1],
+				self.carBlock[c][0] + self.carBlock[c][2],
+				self.carBlock[c][1] + self.carBlock[c][3],
+				0 # 速度0
+			])
+		pl = list(set(list(range(8))) ^ set(pl))
+		for p in pl :
+			self.pers_gps = np.append(self.pers_gps, [
+				self.persBlock[p][4],
+				self.persBlock[p][0],
+				self.persBlock[p][1],
+				self.persBlock[p][0] + self.persBlock[p][2],
+				self.persBlock[p][1] + self.persBlock[p][3],
+			])
+
+	def blueLight(self,bl):
+		# 表示绿灯
+		for i in bl:
+			pygame.draw.rect(self.screen_temp, self.green, self.carBlock[i], 0)
+
+	def timeChange(self,car_gps,pers_gps):
+		''' 固定时差改变信号灯 '''
+		self.car_gps = car_gps
+		self.pers_gps = pers_gps
+		# 如果计时器为0,则带入时间戳
+		if self.timer == 0:
+			self.timer = time.time()
+		elif (self.timer+self.rtime) <= time.time():
+			# 固定时长改变红绿灯
+			self.horizontal = bool(1-self.horizontal) #布尔值取反
+			self.timer = time.time() #新的计时
+		# 判定水平或者垂直方向通行禁止
+		if self.horizontal:
+			# 设定需要设置的红绿灯情报,需要添加到车辆/行人列表中的值
+			bl = list(range(2,4))
+			rl = list(range(2))
+			pl = list(range(4))
+		else:
+			bl = list(range(2))
+			rl = list(range(2,4))
+			pl = list(range(4,8))
+		
+		# 根据时间轴决定表示的信号灯
+		# 垂直方向绿/黄灯制御
+		if (self.timer + self.rtime - self.ytime) >= time.time():
+			self.blueLight(bl)
+		else:
+			self.yellowLight(bl,pl)
+		# 水平方向信号红灯制御
+		self.redLight(rl,pl)
+
+		return self.car_gps,self.pers_gps
+
 	def lights(self):
 		''' 信号灯控制 '''
 		if self.horizontal:
@@ -304,20 +387,6 @@ class Traffic_light:
 			for c in carPos1:
 				pygame.draw.rect(self.screen_temp, self.red, self.carBlock[c], 0)
 			
-
-	def timeChange(self,car_gps,pers_gps):
-		''' 固定时差改变信号灯 '''
-		if self.timer == 0:
-			self.timer = time.time()
-		elif (self.timer+self.rtime+self.ytime) <= time.time():
-			# 固定时长改变红绿灯
-			self.horizontal = bool(1-self.horizontal) #布尔值取反
-			self.timer = time.time() #新的计时
-		
-		self.car_gps = car_gps
-		self.pers_gps = pers_gps
-		self.lights()
-		return self.car_gps,self.pers_gps
 
 	def aiChange(self,car_gps,pers_gps):
 		''' 根据情况改变信号灯 '''
