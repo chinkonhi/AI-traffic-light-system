@@ -3,8 +3,8 @@ import numpy as np
 import time
 
 class AIControl:
-	def __init__(self,horizontal):
-		self.horizontal = horizontal
+	def __init__(self):
+		self.horizontal = True
 		self.change_time = 0
 
 	def list_process(self,clist,plist):
@@ -25,29 +25,17 @@ class AIControl:
 		# 筛选出可扫描范围内的坐标900,756内的,信号前的坐标
 		# 信号坐标参照main
 		carlist = carlist[
-			(carlist[:,1] > 0)
-			&(carlist[:,1] < 900)
-			&(carlist[:,2] > 0)
-			&(carlist[:,2] < 756)
+			((carlist[:,0] == 1)&(carlist[:,1] > 670)&(carlist[:,1] < 900))|
+			((carlist[:,0] == 2 )&(carlist[:,1] < 320)&(carlist[:,1] > 0))|
+			((carlist[:,0] == -1)&(carlist[:,2] > 565)&(carlist[:,2] < 756))|
+			((carlist[:,0] == -2)&(carlist[:,2] < 225)&(carlist[:,2] > 0))
 		]
-		#carlist = carlist[
-		#	(carlist[:,0] == 1)&(carlist[:,1] > 670)
-		#	&(carlist[:,0] == 2 )&(carlist[:,1] < 320)
-		#	&(carlist[:,0] == -1)&(carlist[:,2] > 565)
-		#	&(carlist[:,0] == -2)&(carlist[:,2] < 225)
-		#]
 		perlist = perlist[
-			(perlist[:,1] > 0)
-			&(perlist[:,1] < 900)
-			&(perlist[:,2] > 0)
-			&(perlist[:,2] < 756)
+			((perlist[:,0] == 1)&(perlist[:,1] > 620)&(perlist[:,1] < 900))|
+			((perlist[:,0] == 2)&(perlist[:,1] < 365)&(perlist[:,1] > 0))|
+			((perlist[:,0] == -1)&(perlist[:,2] > 515)&(perlist[:,2] < 756))|
+			((perlist[:,0] == -2)&(perlist[:,2] < 270)&(perlist[:,2] > 0))
 		]
-		#perlist = perlist[
-		#	(perlist[:,0] == 1)&(perlist[:,1] > 620)
-		#	&(perlist[:,0] == 2)&(perlist[:,1] < 365)
-		#	&(perlist[:,0] == -1)&(perlist[:,2] > 515)
-		#	&(perlist[:,0] == -2)&(perlist[:,2] < 270)
-		#]
 
 		# 抽出有效范围内的坐标的数量,放入新列表
 		self.carCount = np.array([
@@ -66,12 +54,14 @@ class AIControl:
 			perlist[(perlist[:,0] == -2)&(perlist[:,1] < 450)].shape[0],
 			perlist[(perlist[:,0] == -2)&(perlist[:,1] > 450)].shape[0]
 		])
-		#print(self.carCount)
-		#print(self.perCount)
 
-	def aiControl(self,change_time):
+		print("有效车辆数量:",self.carCount)
+		print("有效行人数量:",self.perCount)
+
+	def aiControl(self,change_time,horizontal):
 		# 记录当前信号状况的时间戳
 		self.change_time = change_time
+		self.horizontal = horizontal
 
 		# 计算负荷值(数量*等待时长*基数)
 		if self.horizontal: # 水平方向红灯,垂直方向通行
@@ -95,15 +85,16 @@ class AIControl:
 		
 		# 排序列表,取出最大值,根据最大值控制信号
 		result = np.argmax(np.hstack([self.carCount,self.perCount]))
-		#print(self.carCount)
-		#print(self.perCount)
+		
+		print("车辆负荷值:",self.carCount)
+		print("行人负荷值:",self.perCount)
 		
 		if result in [0,1,4,5,6,7]:
 			# 水平方向有最大值
-			#print("水平")
-			#print(np.hstack([self.carCount,self.perCount])[result])
-			return True
-		else:
-			#print("垂直")
-			#print(np.hstack([self.carCount,self.perCount])[result])
+			print("水平",np.hstack([self.carCount,self.perCount])[result])
+			print("="*60)
 			return False
+		else:
+			print("垂直",np.hstack([self.carCount,self.perCount])[result])
+			print("="*60)
+			return True

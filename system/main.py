@@ -231,10 +231,10 @@ class Traffic_light:
 		]
 		self.timer = 0
 		self.horizontal = True #哪个方向信号管制
-		self.rtime = gp.RED_TIME #红灯时间
-		self.ytime = gp.YELLOW_TIME #黄灯时间
-		self.aiC = AIControl(self.horizontal) # instance
-		self.cflag = self.horizontal
+		self.aiC = AIControl() # instance
+		self.yorder = False # 黄灯变化
+		self.ytimer = 0
+		self.result = True
 
 	def redLight(self,rl,pl):
 		# 表示红灯,添加车辆/行人红灯坐标
@@ -293,9 +293,9 @@ class Traffic_light:
 		# 如果计时器为0,则带入时间戳
 		if self.timer == 0:
 			self.timer = time.time()
-		elif (self.timer+self.rtime) <= time.time():
+		elif (self.timer + gp.RED_TIME) <= time.time():
 			# 固定时长改变红绿灯
-			self.horizontal = bool(1-self.horizontal) #布尔值取反
+			self.horizontal = bool(1 - self.horizontal) #布尔值取反
 			self.timer = time.time() #新的计时
 		# 判定水平或者垂直方向通行禁止
 		if self.horizontal:
@@ -310,7 +310,7 @@ class Traffic_light:
 		
 		# 根据时间轴决定表示的信号灯
 		# 垂直方向绿/黄灯制御
-		if (self.timer + self.rtime - self.ytime) >= time.time():
+		if (self.timer + gp.RED_TIME - gp.YELLOW_TIME) >= time.time():
 			self.blueLight(bl)
 		else:
 			self.yellowLight(bl,pl)
@@ -319,95 +319,53 @@ class Traffic_light:
 
 		return self.car_gps,self.pers_gps
 
-	def lights(self):
-		''' 信号灯控制 '''
-		if self.horizontal:
-			#横向同行禁止
-			carPos1 = list(range(2))
-			carPos2 = list(range(2,4))
-			persPos1 = list(range(4))
-			persPos2 = list(range(4,8))
-		else:
-			#纵向通行禁止
-			carPos1 = list(range(2,4))
-			carPos2 = list(range(2))
-			persPos1 = list(range(4,8))
-			persPos2 = list(range(4))
-		#将红绿灯坐标添加进car_gps
-		for c in carPos1:
-			self.car_gps = np.append(self.car_gps, [
-				0, # 方向type
-				self.carBlock[c][0],
-				self.carBlock[c][1],
-				self.carBlock[c][0] + self.carBlock[c][2],
-				self.carBlock[c][1] + self.carBlock[c][3],
-				0 # 速度0
-			])
-		
-		#将红绿灯信息添加进通行人pers_gps中
-		for p in persPos1:
-			self.pers_gps = np.append(self.pers_gps, [
-				self.persBlock[p][4],
-				self.persBlock[p][0],
-				self.persBlock[p][1],
-				self.persBlock[p][0] + self.persBlock[p][2],
-				self.persBlock[p][1] + self.persBlock[p][3],
-			])
-
-		for c in carPos2:
-			# 亮绿灯
-			pygame.draw.rect(self.screen_temp, self.green, self.carBlock[c], 0)
-		if (self.timer+self.ytime) >= time.time():
-			for c in carPos1:
-				 # 亮黄灯
-				pygame.draw.rect(self.screen_temp, self.yellow, self.carBlock[c], 0)
-		else:
-			if self.timer+self.rtime <= time.time():
-				#是否亮另一边黄灯					
-				for c in carPos2:
-					self.car_gps = np.append(self.car_gps, [
-						0, # 方向type
-						self.carBlock[c][0],
-						self.carBlock[c][1],
-						self.carBlock[c][0] + self.carBlock[c][2],
-						self.carBlock[c][1] + self.carBlock[c][3],
-						0 # 速度0
-					])
-					pygame.draw.rect(self.screen_temp, self.yellow, self.carBlock[c], 0)
-
-				for p in persPos2:
-					self.pers_gps = np.append(self.pers_gps, [
-						self.persBlock[p][4],
-						self.persBlock[p][0],
-						self.persBlock[p][1],
-						self.persBlock[p][0] + self.persBlock[p][2],
-						self.persBlock[p][1] + self.persBlock[p][3],
-					])
-			#亮红灯
-			for c in carPos1:
-				pygame.draw.rect(self.screen_temp, self.red, self.carBlock[c], 0)
-			
-
 	def aiChange(self,car_gps,pers_gps):
 		''' 根据情况改变信号灯 '''
 		# 将车辆列表,行人列表,时间戳传入AIControl类
+		self.car_gps = car_gps
+		self.pers_gps = pers_gps
+
 		if self.timer == 0:
 			self.timer = time.time()
 
-		#if time.time() - self.timer == gp.YELLOW_TIME # 黄灯时长次进行智能判断
-		self.aiC.list_process(car_gps,pers_gps)
-		self.horizontal = self.aiC.aiControl(self.timer)
+		# 如果进入变灯流程,则不进行判定
+		if not(self.yorder):
+			self.aiC.list_process(self.car_gps,self.pers_gps)
+			self.result = self.aiC.aiControl(self.timer,self.horizontal)
+			# 如果只能判定与现有信号不同,则进入变灯流程
+			if self.result != self.horizontal:
+				# 如果判断结果和现状不同,则更改yorder
+				self.yorder = True
+				self.ytimer = time.time()
+				print("变灯流程开始,时间:",self.ytimer)
+
+		if self.horizontal:
+			# 设定需要设置的红绿灯情报,需要添加到车辆/行人列表中的值
+			bl = list(range(2,4))
+			rl = list(range(2))
+			pl = list(range(4))
+		else:
+			bl = list(range(2))
+			rl = list(range(2,4))
+			pl = list(range(4,8))
 		
-		if self.cflag != self.horizontal:
-			# 如果判断结果和现状不同,则更改现状cflag,并且重新计时
-			self.cflag = self.horizontal
-			self.timer = time.time()
-		
-		self.car_gps = car_gps
-		self.pers_gps = pers_gps
-		self.lights()
+		# 判定是黄灯或者绿灯
+		if self.yorder:
+			self.yellowLight(bl,pl)
+			if time.time() >= self.ytimer + gp.YELLOW_TIME:
+				# 根据黄灯时长,判定变灯流程是否结束
+				self.yorder = False
+				self.horizontal = self.result
+				self.timer = time.time()
+				print("变灯流程结束,时间:",time.time())
+		else:
+			self.blueLight(bl)
+			
+		# 水平方向信号红灯制御
+		self.redLight(rl,pl)
 
 		return self.car_gps,self.pers_gps
+
 
 def sideMenu(screen):
 	''' 生成侧边目录 '''
