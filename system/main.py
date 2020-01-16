@@ -337,7 +337,6 @@ class Traffic_light:
 				# 如果判断结果和现状不同,则更改yorder
 				self.yorder = True
 				self.ytimer = time.time()
-				print("变灯流程开始,时间:",self.ytimer)
 
 		if self.horizontal:
 			# 设定需要设置的红绿灯情报,需要添加到车辆/行人列表中的值
@@ -357,7 +356,6 @@ class Traffic_light:
 				self.yorder = False
 				self.horizontal = self.result
 				self.timer = time.time()
-				print("变灯流程结束,时间:",time.time())
 		else:
 			self.blueLight(bl)
 			
@@ -377,6 +375,33 @@ def sideMenu(screen):
 	screen.blit(pygame.image.load("../img/+.jpg"),(7,340))
 	screen.blit(pygame.image.load("../img/-.jpg"),(53,340))
 
+def textShow(screen,text_value,text_frequency):
+	# 通行频度
+	screen.blit(text_frequency,(0,5))
+	# 信号类型
+	screen.blit(text_value,(0,24))
+
+def frequentControl(render_frequency,frequency,plusminus):
+	''' 控制车辆行人出现频度 '''
+	frequencies = np.array([gp.HIGH_FREQUENT,gp.MIDDLE_FREQUENT,gp.LOW_FREQUENT]) #15 30 50
+	flist = ["High","Middle","Low"]
+
+	if plusminus > 0:
+		# 提升频率
+		if frequencies[frequency>frequencies].size != 0:
+			frequency = frequencies[frequency>frequencies][-1]
+			index = np.argwhere(frequencies == frequency)[0,0]
+			render_frequency = flist[index]
+	else:
+		# 降低频率
+		if frequencies[frequency<frequencies].size != 0: 
+			frequency = frequencies[frequency<frequencies][0]
+			index = np.argwhere(frequencies == frequency)[0,0]
+			render_frequency = flist[index]
+
+	print(render_frequency)
+	return render_frequency,frequency
+
 #创建主窗口
 def main():
 	'''主程序执行函数'''
@@ -392,9 +417,8 @@ def main():
 	#加载图像,返回图片对象
 	background = pygame.image.load("../img/cross1.jpg")
 
-	#设置车辆频度变数
-	carFrequency = 25
-	perFrequency = 25
+	#设置车辆行人频度变数
+	frequency = gp.MIDDLE_FREQUENT
 
 	#flag
 	flag = 0
@@ -432,6 +456,12 @@ def main():
 		[-1,620,780]
 	]
 
+	#创建文字对象
+	text = pygame.font.Font("../font/YuGothM.ttc",14)
+	text_value = text.render("",1,(255,0,0))
+	text_frequency = text.render("通行量：Middle",1,(255,0,0))
+	render_frequency = "Middle"
+
 	#开始前预处理
 	screen.blit(background,(100,0))
 	sideMenu(screen)
@@ -447,26 +477,40 @@ def main():
 				pos = pygame.mouse.get_pos()
 				mouse_x = pos[0]
 				mouse_y = pos[1]
+
 				if ((10<mouse_x<90) & (60<mouse_y<100)):#开始
 					flag = 1
+
 				elif ((10<mouse_x<90) & (120<mouse_y<160)):#暂停
 					flag = 0
+
 				elif ((10<mouse_x<90) & (200<mouse_y<240)):#时差式
 					pattern = 1
+					text_value = text.render("時差式",1,(255,0,0))
+
 				elif ((10<mouse_x<90) & (260<mouse_y<300)):#知能式
 					pattern = 2
-		
+					text_value = text.render("知能式",1,(255,0,0))
+
+				elif ((7<mouse_x<47) & (340<mouse_y<380)): #+
+					render_frequency,frequency = frequentControl(render_frequency,frequency,1)
+					text_frequency = text.render("通行量："+render_frequency,1,(255,0,0))
+
+				elif ((53<mouse_x<93) & (340<mouse_y<380)): #-
+					render_frequency,frequency = frequentControl(render_frequency,frequency,-1)
+					text_frequency = text.render("通行量："+render_frequency,1,(255,0,0))
+
 		if flag == 1:
 			#绘制图像
 			screen.blit(background,(100,0))
 
 			#随机绘制车辆
 			#控制车辆出现频度
-			if random.choice(range(carFrequency)) == 1:
+			if random.choice(range(frequency)) == 1:
 				#控制车辆的车道
 				road = random.choice(range(len(road_shape))) #根据车道决定初始坐标
 				carlist.append(Car(screen,road_shape[road]))
-			if random.choice(range(perFrequency)) == 1:
+			if random.choice(range(frequency)) == 1:
 				#控制人出现
 				style = random.choice(range(len(pers_shape)))
 				personlist.append(Person(screen,pers_shape[style]))
@@ -501,6 +545,7 @@ def main():
 
 			#刷新画面
 			sideMenu(screen)
+			textShow(screen,text_value,text_frequency)
 			pygame.display.update()
 
 		#定时显示
@@ -512,21 +557,8 @@ def main():
 if __name__ == "__main__":
 	main()
 
-# BASE(8/12)
-#1.全信号表示,包括红黄蓝(人行横道包含)(1/1)
-#2.添加人行横道的斑马线(1/1)
-#3.车的加速度机能(1/1)
-#4.智能式信号(0/1)
-#5.车与人的相关变数用定数定义(便于修改)(1/1)
-#6.黄灯期间行人能横穿马路(1/1)
-#7.频度调整的按钮和机能(0/1)
-#8.行人的信号越界踩线问题(1/1)
-#9.car类的重写(参考pers类)(1/1)
-#10.将类分离为单独文件(0/1)
-#11.改造light方法,使其适用于时差式和智能式(1/1)
-#12.时差式转到智能式时的问题(0/1)
-#13.类似Future的同步处理
-#
-# OPTION(0/2)
-# 双信号灯(0/1)
-# 4个信号灯(0/1)
+
+#1.频度调整的按钮和机能
+#2.将类分离为单独文件
+#3.类似Future的同步处理
+#4.计算表示2种模式下的等待时长
