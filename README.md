@@ -2,10 +2,8 @@
 Simulation of AI-controlled traffic signal system using python's pygame
 
 Pythonのpygameライブラリーを用いてAI制御の交通信号システムをシミュレーター。
-当システムはPython環境が必要です。
-実行はsystemフォルダのmain.pyです。
-
-
+Python環境実行：Powershellでsystemフォルダのmain.pyを実行します。
+Python環境がない場合：MainRunning.exeファイルで実行します。
 
 START：プログラムを開始
 SUSPEND：一旦停止
